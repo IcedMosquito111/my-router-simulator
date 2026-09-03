@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>路由模拟系统 - 交互式演示</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            gap: 20px;
+        }
+
+        .left-panel {
+            flex: 1 1 50%;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .right-panel {
+            flex: 1 1 50%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        #network {
+            width: 100%;
+            height: 100%;
+        }
+
+        .controls {
+            margin-bottom: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            align-items: center;
+        }
+
+        button {
+            padding: 5px 12px;
+            cursor: pointer;
+            border: 1px solid #888;
+            border-radius: 4px;
+            background: #f5f5f5;
+        }
+
+        button.active-mode {
+            background-color: #4CAF50;
+            color: white;
+            border-color: #388E3C;
+        }
+
+        .log {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 5px;
+            background: #f9f9f9;
+            font-size: 12px;
+            border-radius: 4px;
+        }
+
+        .route-info {
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background: #fafafa;
+            display: none;
+            border-radius: 4px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 12px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 4px;
+            text-align: left;
+        }
+
+        th {
+            background: #f0f0f0;
+        }
+
+        .status-tip {
+            font-size: 12px;
+            color: #555;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>路由模拟系统 - 交互式演示</h1>
+    <div class="controls">
+        <button id="btn-fault-inject" onclick="setMode('fault-inject')">故障注入</button>
+        <button id="btn-fault-recover" onclick="setMode('fault-recover')">故障恢复</button>
+        <span style="width:20px;"></span>
+        <button id="btn-select-src" onclick="setMode('select-src')">选择源节点</button>
+        <button id="btn-select-dst" onclick="setMode('select-dst')">选择目的节点</button>
+        <button id="btn-send-packet" onclick="sendPacket()">发送分组</button>
+        <button id="btn-reset-selection" onclick="resetSelection()">重置选择</button>
+        <span class="status-tip" id="status-tip">就绪 - 请点击按钮选择操作</span>
+    </div>
+    <div class="main-container">
+        <div class="left-panel">
+            <div id="network"></div>
+        </div>
+        <div class="right-panel">
+            <h3 style="margin: 0;">实时日志</h3>
+            <div class="log" id="log"></div>
+            <div class="route-info" id="route-info"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let nodesDataset, edgesDataset, network;
+        let currentMode = null;
+        let selectedSrc = null;
+        let selectedDst = null;
+        let firstLoad = true;
+
+        // 固定节点尺寸：直径 18px，半径 9
+        const NODE_DIAMETER = 18;
+        const NODE_RADIUS = NODE_DIAMETER / 2;
+
+        function initNetwork() {
+            nodesDataset = new vis.DataSet([]);
+            edgesDataset = new vis.DataSet([]);
+            const container = document.getElementById('network');
+            const data = { nodes: nodesDataset, edges: edgesDataset };
+            const options = {
+                physics: { enabled: false },
+                interaction: { hover: true },
+                nodes: {
+                    shape: 'circle',
+                    size: NODE_RADIUS,
+                    widthConstraint: { minimum: NODE_DIAMETER, maximum: NODE_DIAMETER },
+                    heightConstraint: { minimum: NODE_DIAMETER, maximum: NODE_DIAMETER },
+                    scaling: {
+                        label: { enabled: false }
+                    },
+                    font: { size: 8, color: '#ffffff', face: 'arial', strokeWidth: 0, background: 'none' },
+                    borderWidth: 1,
+                    shadow: false,
+                    color: {
+                        background: '#4CAF50',
+                        border: '#2E7D32'
+                    }
+                },
+                edges: { width: 2, smooth: { enabled: false } }
+            };
+            network = new vis.Network(container, data, options);
+
+            network.on('click', function (params) {
+                if (currentMode === 'fault-inject') {
+                    if (params.nodes.length > 0) {
+                        const nodeId = params.nodes[0];
+                        nodesDataset.update({ id: nodeId, status: 'down', color: { background: '#f44336', border: '#B71C1C' } });
+                        sendCommand('inject_fault', { type: 'node', id: nodeId });
+                        setMode(null);
+                    } else if (params.edges.length > 0) {
+                        const edgeId = params.edges[0];
+                        const edge = edgesDataset.get(edgeId);
+                        edgesDataset.update({ id: edgeId, status: 'down', color: { color: '#f44336', highlight: '#f44336' }, width: 4 });
+                        sendCommand('inject_fault', { type: 'link', source: edge.from, target: edge.to });
+                        setMode(null);
+                    }
+                } else if (currentMode === 'fault-recover') {
+                    if (params.nodes.length > 0) {
+                        const nodeId = params.nodes[0];
+                        nodesDataset.update({ id: nodeId, status: 'up', color: { background: '#4CAF50', border: '#2E7D32' } });
+                        sendCommand('recover_fault', { type: 'node', id: nodeId });
+                        setMode(null);
+                    } else if (params.edges.length > 0) {
+                        const edgeId = params.edges[0];
+                        const edge = edgesDataset.get(edgeId);
+                        edgesDataset.update({ id: edgeId, status: 'up', color: { color: '#848484', highlight: '#848484' }, width: 2 });
+                        sendCommand('recover_fault', { type: 'link', source: edge.from, target: edge.to });
+                        setMode(null);
+                    }
+                } else if (currentMode === 'select-src' && params.nodes.length > 0) {
+                    selectedSrc = params.nodes[0];
+                    updateStatusTip(`源节点: ${selectedSrc}，目的节点: ${selectedDst || '未选择'}`);
+                    setMode(null);
+                    updateSelectionColors();
+                } else if (currentMode === 'select-dst' && params.nodes.length > 0) {
+                    selectedDst = params.nodes[0];
+                    updateStatusTip(`源节点: ${selectedSrc || '未选择'}，目的节点: ${selectedDst}`);
+                    setMode(null);
+                    updateSelectionColors();
+                } else if (params.nodes.length > 0) {
+                    requestRoutingTable(params.nodes[0]);
+                }
+            });
+
+            network.on('dragEnd', function (params) {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    const position = network.getPosition(nodeId);
+                    nodesDataset.update({ id: nodeId, x: position.x, y: position.y });
+                }
+            });
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.controls button').forEach(btn => btn.classList.remove('active-mode'));
+            const tip = document.getElementById('status-tip');
+            if (mode === 'fault-inject') {
+                tip.textContent = '请点击一个节点或链路以注入故障';
+                document.getElementById('btn-fault-inject').classList.add('active-mode');
+            } else if (mode === 'fault-recover') {
+                tip.textContent = '请点击一个节点或链路以恢复';
+                document.getElementById('btn-fault-recover').classList.add('active-mode');
+            } else if (mode === 'select-src') {
+                tip.textContent = '请点击选择源节点';
+                document.getElementById('btn-select-src').classList.add('active-mode');
+            } else if (mode === 'select-dst') {
+                tip.textContent = '请点击选择目的节点';
+                document.getElementById('btn-select-dst').classList.add('active-mode');
+            } else {
+                tip.textContent = `就绪 - 源节点: ${selectedSrc || '未选择'}，目的节点: ${selectedDst || '未选择'}`;
+            }
+        }
+
+        function updateStatusTip(text) {
+            document.getElementById('status-tip').textContent = text;
+        }
+
+        function resetSelection() {
+            selectedSrc = null;
+            selectedDst = null;
+            updateSelectionColors();
+            updateStatusTip('已重置源/目的节点选择');
+        }
+
+        function updateSelectionColors() {
+            nodesDataset.get().forEach(node => {
+                const isUp = node.status === 'up';
+                nodesDataset.update({
+                    id: node.id,
+                    color: {
+                        background: isUp ? '#4CAF50' : '#f44336',
+                        border: isUp ? '#2E7D32' : '#B71C1C'
+                    }
+                });
+            });
+            if (selectedSrc) {
+                nodesDataset.update({ id: selectedSrc, color: { background: '#FF9800', border: '#F57C00' } });
+            }
+            if (selectedDst) {
+                nodesDataset.update({ id: selectedDst, color: { background: '#FF9800', border: '#F57C00' } });
+            }
+        }
+
+        function updateTopology(snapshot) {
+            // 保存现有节点位置
+            const existingPositions = {};
+            nodesDataset.get().forEach(node => {
+                existingPositions[node.id] = { x: node.x, y: node.y };
+            });
+
+            // 完全重建
+            nodesDataset.clear();
+            edgesDataset.clear();
+
+            const totalNodes = snapshot.nodes.length;
+            const centerX = 400;
+            const centerY = 300;
+            const radius = Math.min(centerX, centerY) * 0.95;  // 增大半径，使分布更开
+
+            snapshot.nodes.forEach((node, index) => {
+                let x, y;
+                if (existingPositions[node.id]) {
+                    x = existingPositions[node.id].x;
+                    y = existingPositions[node.id].y;
+                } else {
+                    const angle = (index / totalNodes) * 2 * Math.PI;
+                    x = centerX + radius * Math.cos(angle);
+                    y = centerY + radius * Math.sin(angle);
+                }
+                nodesDataset.add({
+                    id: node.id,
+                    label: node.id,
+                    status: node.status,
+                    size: NODE_RADIUS,
+                    widthConstraint: { minimum: NODE_DIAMETER, maximum: NODE_DIAMETER },
+                    heightConstraint: { minimum: NODE_DIAMETER, maximum: NODE_DIAMETER },
+                    x: x,
+                    y: y,
+                    color: {
+                        background: node.status === 'up' ? '#4CAF50' : '#f44336',
+                        border: node.status === 'up' ? '#2E7D32' : '#B71C1C'
+                    }
+                });
+            });
+
+            snapshot.links.forEach(link => {
+                edgesDataset.add({
+                    id: `${link.source}-${link.target}`,
+                    from: link.source,
+                    to: link.target,
+                    status: link.status,
+                    color: {
+                        color: link.status === 'up' ? '#848484' : '#f44336',
+                        highlight: link.status === 'up' ? '#848484' : '#f44336'
+                    },
+                    width: link.status === 'up' ? 2 : 4
+                });
+            });
+
+            updateSelectionColors();
+
+            if (firstLoad) {
+                firstLoad = false;
+                setTimeout(() => {
+                    network.fit({ animation: false });
+                    const currentScale = network.getScale();
+                    network.moveTo({ scale: currentScale * 1.1 });  // 放大 1.3 倍
+                }, 100);
+            }
+        }
+
+        function sendCommand(action, params) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action, params }));
+            } else {
+                addLog('error', 'WebSocket 未连接');
+            }
+        }
+
+        function sendPacket() {
+            if (!selectedSrc || !selectedDst) {
+                addLog('error', '请先选择源节点和目的节点');
+                return;
+            }
+            const num = parseInt(selectedDst.replace('R', ''));
+            const dstIp = `10.255.${Math.floor(num / 256)}.${num % 256}`;
+            sendCommand('send_packet', { src_node: selectedSrc, dst_ip: dstIp });
+            updateStatusTip(`分组已从 ${selectedSrc} 发往 ${selectedDst}`);
+        }
+
+        function requestRoutingTable(nodeId) {
+            sendCommand('get_routing_table', { node_id: nodeId });
+        }
+
+        function displayRoutingTable(nodeId, routes) {
+            const infoDiv = document.getElementById('route-info');
+            let html = `<h3>节点 ${nodeId} 路由表</h3>`;
+            html += `<table><tr><th>目的网络</th><th>下一跳</th><th>度量值</th><th>接口</th><th>协议</th></tr>`;
+            routes.forEach(route => {
+                html += `<tr><td>${route.destination}</td><td>${route.next_hop}</td><td>${route.metric}</td><td>${route.interface}</td><td>${route.protocol}</td></tr>`;
+            });
+            html += '</table>';
+            infoDiv.innerHTML = html;
+            infoDiv.style.display = 'block';
+        }
+
+        function addLog(level, message) {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            const time = new Date().toLocaleTimeString();
+            entry.textContent = `[${time}] [${level}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function connect() {
+            ws = new WebSocket('ws://localhost:8000/ws');
+            ws.onopen = () => addLog('info', 'WebSocket 连接成功');
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                switch (msg.type) {
+                    case 'topology_snapshot':
+                    case 'topology_update':
+                        updateTopology(msg.data);
+                        break;
+                    case 'routing_table_update':
+                        addLog('info', `节点 ${msg.data.node_id} 路由表已更新 (${msg.data.routes.length} 条)`);
+                        const infoDiv = document.getElementById('route-info');
+                        if (infoDiv.style.display !== 'none' && infoDiv.innerHTML.includes(msg.data.node_id)) {
+                            requestRoutingTable(msg.data.node_id);
+                        }
+                        break;
+                    case 'log':
+                        addLog(msg.data.level, msg.data.message);
+                        break;
+                    case 'packet_forwarded':
+                        addLog('info', `分组转发完成：${msg.data.src} -> ${msg.data.dst}，路径：${msg.data.path.join(' → ')}`);
+                        highlightPath(msg.data.path);
+                        break;
+                    case 'command_response':
+                        addLog(msg.data.success ? 'info' : 'error', msg.data.message);
+                        if (msg.data.success && msg.data.data && msg.data.data.routes) {
+                            displayRoutingTable(msg.data.data.node_id, msg.data.data.routes);
+                        }
+                        break;
+                    case 'error':
+                        addLog('error', msg.data.message);
+                        break;
+                }
+            };
+            ws.onerror = () => addLog('error', 'WebSocket 错误');
+            ws.onclose = () => addLog('warning', 'WebSocket 连接关闭');
+        }
+
+        function highlightPath(path) {
+            updateSelectionColors();
+
+            edgesDataset.get().forEach(edge => {
+                const isUp = edge.status === 'up';
+                edgesDataset.update({
+                    id: edge.id,
+                    color: { color: isUp ? '#848484' : '#f44336', highlight: isUp ? '#848484' : '#f44336' },
+                    width: isUp ? 2 : 4
+                });
+            });
+
+            for (let i = 0; i < path.length - 1; i++) {
+                const src = path[i];
+                const dst = path[i + 1];
+                nodesDataset.update({ id: src, color: { background: '#FF9800', border: '#F57C00' } });
+                nodesDataset.update({ id: dst, color: { background: '#FF9800', border: '#F57C00' } });
+                const edgeId = `${src}-${dst}`;
+                if (edgesDataset.get(edgeId)) {
+                    edgesDataset.update({ id: edgeId, color: { color: '#FF9800', highlight: '#FF5722' }, width: 4 });
+                } else {
+                    const reverseEdgeId = `${dst}-${src}`;
+                    if (edgesDataset.get(reverseEdgeId)) {
+                        edgesDataset.update({ id: reverseEdgeId, color: { color: '#FF9800', highlight: '#FF5722' }, width: 4 });
+                    }
+                }
+            }
+
+            setTimeout(() => {
+                sendCommand('get_topology', {});
+            }, 5000);
+        }
+
+        window.onload = () => {
+            initNetwork();
+            connect();
+        };
+    </script>
+</body>
+
+</html>
