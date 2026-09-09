@@ -198,8 +198,18 @@ class Simulator:
             await self._log("warning", f"节点 {node_id} 发生故障")
             await self._push_callback("topology_update", self.topology.get_topology_snapshot())
             # 重新计算路由
-            await self._recalculate_routes()
-            return {"success": True, "message": f"节点 {node_id} 故障注入成功", "data": {"node_id": node_id}}
+            convergence_ms = await self._recalculate_routes()
+            return {
+                "success": True,
+                "message": f"节点 {node_id} 故障注入成功",
+                "data": {
+                    "operation": "fault",
+                    "fault_type": "node",
+                    "fault_target": node_id,
+                    "node_id": node_id,
+                    "convergence_ms": convergence_ms,
+                },
+            }
         elif fault_type == "link":
             src = params.get("source")
             dst = params.get("target")
@@ -223,8 +233,19 @@ class Simulator:
                         intf.status = "down"
             await self._log("warning", f"链路 {src}-{dst} 发生故障")
             await self._push_callback("topology_update", self.topology.get_topology_snapshot())
-            await self._recalculate_routes()
-            return {"success": True, "message": f"链路 {src}-{dst} 故障注入成功", "data": {"source": src, "target": dst}}
+            convergence_ms = await self._recalculate_routes()
+            return {
+                "success": True,
+                "message": f"链路 {src}-{dst} 故障注入成功",
+                "data": {
+                    "operation": "fault",
+                    "fault_type": "link",
+                    "fault_target": f"{src}-{dst}",
+                    "source": src,
+                    "target": dst,
+                    "convergence_ms": convergence_ms,
+                },
+            }
         else:
             return {"success": False, "message": f"不支持的故障类型: {fault_type}"}
 
@@ -270,16 +291,17 @@ class Simulator:
         else:
             return {"success": False, "message": f"不支持的故障类型: {fault_type}"}
 
-    async def _recalculate_routes(self) -> None:
+    async def _recalculate_routes(self) -> float:
         """重新计算全网路由，并推送所有节点的路由表更新，同时记录耗时"""
         if not self.ospf:
-            return
-        start_time = time.time()
+            return 0.0
+        start_time = time.perf_counter()
         routing_updates = self.ospf.handle_topology_change()
-        elapsed_ms = (time.time() - start_time) * 1000  # 毫秒
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
         await self._log("info", f"路由重计算完成，耗时 {elapsed_ms:.2f} 毫秒")
         for update in routing_updates:
             await self._push_callback("routing_table_update", update)
+        return round(elapsed_ms, 2)
 
     # ---------- 分组转发 ----------
     async def _send_packet(self, params: Dict[str, Any]) -> Dict[str, Any]:

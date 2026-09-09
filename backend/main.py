@@ -147,6 +147,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 if response:
                     await websocket.send_json({
                         "type": "command_response",
+                        "action": data.get("action"),
                         "data": response
                     })
             else:

@@ -93,6 +93,83 @@
             border-radius: 4px;
         }
 
+        .comparison-panel {
+            border: 1px solid #d7dce2;
+            border-radius: 4px;
+            background: #ffffff;
+            padding: 12px;
+        }
+
+        .comparison-panel h3 {
+            margin: 0 0 10px;
+            font-size: 15px;
+        }
+
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 130px;
+            gap: 10px;
+        }
+
+        .path-result,
+        .convergence-result {
+            min-width: 0;
+            padding: 9px;
+            border: 1px solid #e2e6ea;
+            border-radius: 4px;
+            background: #f8f9fa;
+        }
+
+        .result-label {
+            margin-bottom: 6px;
+            color: #5b6570;
+            font-size: 12px;
+        }
+
+        .path-value {
+            min-height: 32px;
+            overflow-wrap: anywhere;
+            color: #20262d;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .path-meta,
+        .convergence-state {
+            margin-top: 4px;
+            color: #6b747d;
+            font-size: 11px;
+        }
+
+        .convergence-value {
+            color: #20262d;
+            font-size: 22px;
+            line-height: 32px;
+        }
+
+        .convergence-value.success {
+            color: #238636;
+        }
+
+        .convergence-value.failure,
+        .path-meta.failure {
+            color: #c62828;
+        }
+
+        @media (max-width: 900px) {
+            .main-container {
+                flex-direction: column;
+            }
+
+            .left-panel {
+                min-height: 48vh;
+            }
+
+            .comparison-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
         table {
             border-collapse: collapse;
             width: 100%;
@@ -135,6 +212,26 @@
             <div id="network"></div>
         </div>
         <div class="right-panel">
+            <div class="comparison-panel">
+                <h3>故障路由对比</h3>
+                <div class="comparison-grid">
+                    <div class="path-result">
+                        <div class="result-label">故障前路径</div>
+                        <div class="path-value" id="before-path">尚未发送分组</div>
+                        <div class="path-meta" id="before-path-meta">--</div>
+                    </div>
+                    <div class="path-result">
+                        <div class="result-label">故障后路径</div>
+                        <div class="path-value" id="after-path">等待故障注入</div>
+                        <div class="path-meta" id="after-path-meta">--</div>
+                    </div>
+                    <div class="convergence-result">
+                        <div class="result-label">收敛耗时</div>
+                        <div class="convergence-value" id="convergence-time">--</div>
+                        <div class="convergence-state" id="convergence-state">目标 &le; 2000 ms</div>
+                    </div>
+                </div>
+            </div>
             <h3 style="margin: 0;">实时日志</h3>
             <div class="log" id="log"></div>
             <div class="route-info" id="route-info"></div>
@@ -148,6 +245,10 @@
         let selectedSrc = null;
         let selectedDst = null;
         let firstLoad = true;
+        let lastPacketRequest = null;
+        let lastCompletedPacket = null;
+        let faultComparison = null;
+        let awaitingPostFaultPacket = false;
 
         // 固定节点尺寸：直径 18px，半径 9
         const NODE_DIAMETER = 18;
@@ -185,12 +286,14 @@
                 if (currentMode === 'fault-inject') {
                     if (params.nodes.length > 0) {
                         const nodeId = params.nodes[0];
+                        beginFaultComparison('节点', nodeId);
                         nodesDataset.update({ id: nodeId, status: 'down', color: { background: '#f44336', border: '#B71C1C' } });
                         sendCommand('inject_fault', { type: 'node', id: nodeId });
                         setMode(null);
                     } else if (params.edges.length > 0) {
                         const edgeId = params.edges[0];
                         const edge = edgesDataset.get(edgeId);
+                        beginFaultComparison('链路', `${edge.from}-${edge.to}`);
                         edgesDataset.update({ id: edgeId, status: 'down', color: { color: '#f44336', highlight: '#f44336' }, width: 4 });
                         sendCommand('inject_fault', { type: 'link', source: edge.from, target: edge.to });
                         setMode(null);
@@ -366,8 +469,87 @@
             }
             const num = parseInt(selectedDst.replace('R', ''));
             const dstIp = `10.255.${Math.floor(num / 256)}.${num % 256}`;
+            lastPacketRequest = { src_node: selectedSrc, dst_node: selectedDst, dst_ip: dstIp };
             sendCommand('send_packet', { src_node: selectedSrc, dst_ip: dstIp });
             updateStatusTip(`分组已从 ${selectedSrc} 发往 ${selectedDst}`);
+        }
+
+        function beginFaultComparison(type, target) {
+            const beforePath = document.getElementById('before-path');
+            const beforeMeta = document.getElementById('before-path-meta');
+
+            faultComparison = {
+                request: lastCompletedPacket ? { ...lastCompletedPacket.request } : null,
+                before: lastCompletedPacket ? [...lastCompletedPacket.path] : null,
+                fault: `${type} ${target}`
+            };
+            awaitingPostFaultPacket = false;
+
+            if (faultComparison.before) {
+                beforePath.textContent = formatPath(faultComparison.before);
+                beforeMeta.textContent = `${faultComparison.before.length - 1} 跳`;
+            } else {
+                beforePath.textContent = '无基准路径';
+                beforeMeta.textContent = '请先发送一次分组';
+            }
+            beforeMeta.className = 'path-meta';
+
+            document.getElementById('after-path').textContent = '正在重新计算路由...';
+            const afterMeta = document.getElementById('after-path-meta');
+            afterMeta.textContent = faultComparison.fault;
+            afterMeta.className = 'path-meta';
+            const convergenceTime = document.getElementById('convergence-time');
+            convergenceTime.textContent = '--';
+            convergenceTime.className = 'convergence-value';
+            document.getElementById('convergence-state').textContent = '计算中';
+        }
+
+        function updateConvergence(convergenceMs) {
+            const convergenceTime = document.getElementById('convergence-time');
+            const withinTarget = convergenceMs <= 2000;
+            convergenceTime.textContent = `${Number(convergenceMs).toFixed(2)} ms`;
+            convergenceTime.className = `convergence-value ${withinTarget ? 'success' : 'failure'}`;
+            document.getElementById('convergence-state').textContent = withinTarget ? '满足 2 秒指标' : '超过 2 秒指标';
+        }
+
+        function updateBaseline(packet) {
+            if (packet.status === 'delivered') {
+                lastCompletedPacket = {
+                    request: { ...lastPacketRequest },
+                    path: [...packet.path],
+                    status: packet.status
+                };
+            } else {
+                lastCompletedPacket = null;
+            }
+            document.getElementById('before-path').textContent = formatPath(packet.path);
+            const meta = document.getElementById('before-path-meta');
+            meta.textContent = `${Math.max(0, packet.path.length - 1)} 跳 · ${formatPacketStatus(packet.status)}`;
+            meta.className = `path-meta${packet.status === 'delivered' ? '' : ' failure'}`;
+        }
+
+        function updatePostFaultPath(packet) {
+            const meta = document.getElementById('after-path-meta');
+            document.getElementById('after-path').textContent = packet.path.length ? formatPath(packet.path) : '无可用路径';
+            meta.textContent = `${Math.max(0, packet.path.length - 1)} 跳 · ${formatPacketStatus(packet.status)}`;
+            meta.className = `path-meta${packet.status === 'delivered' ? '' : ' failure'}`;
+            awaitingPostFaultPacket = false;
+        }
+
+        function markPostFaultUnavailable(message) {
+            document.getElementById('after-path').textContent = '不可达';
+            const meta = document.getElementById('after-path-meta');
+            meta.textContent = message;
+            meta.className = 'path-meta failure';
+            awaitingPostFaultPacket = false;
+        }
+
+        function formatPath(path) {
+            return path && path.length ? path.join(' → ') : '无可用路径';
+        }
+
+        function formatPacketStatus(status) {
+            return status === 'delivered' ? '已送达' : '已丢弃';
         }
 
         function requestRoutingTable(nodeId) {
@@ -417,12 +599,32 @@
                         break;
                     case 'packet_forwarded':
                         addLog('info', `分组转发完成：${msg.data.src} -> ${msg.data.dst}，路径：${msg.data.path.join(' → ')}`);
+                        if (awaitingPostFaultPacket) {
+                            updatePostFaultPath(msg.data);
+                        } else if (lastPacketRequest) {
+                            updateBaseline(msg.data);
+                        }
                         highlightPath(msg.data.path);
                         break;
                     case 'command_response':
                         addLog(msg.data.success ? 'info' : 'error', msg.data.message);
                         if (msg.data.success && msg.data.data && msg.data.data.routes) {
                             displayRoutingTable(msg.data.data.node_id, msg.data.data.routes);
+                        }
+                        if (msg.action === 'inject_fault' && msg.data.success && msg.data.data && msg.data.data.operation === 'fault') {
+                            updateConvergence(msg.data.data.convergence_ms);
+                            if (faultComparison && faultComparison.request) {
+                                awaitingPostFaultPacket = true;
+                                const request = faultComparison.request;
+                                sendCommand('send_packet', { src_node: request.src_node, dst_ip: request.dst_ip });
+                            } else {
+                                document.getElementById('after-path').textContent = '未执行路径对比';
+                                document.getElementById('after-path-meta').textContent = '缺少故障前基准路径';
+                            }
+                        } else if (msg.action === 'send_packet' && !msg.data.success && awaitingPostFaultPacket) {
+                            markPostFaultUnavailable(msg.data.message);
+                        } else if (msg.action === 'inject_fault' && !msg.data.success && faultComparison) {
+                            document.getElementById('convergence-state').textContent = '故障注入失败';
                         }
                         break;
                     case 'error':
