@@ -249,10 +249,13 @@
         let lastCompletedPacket = null;
         let faultComparison = null;
         let awaitingPostFaultPacket = false;
+        let packetAnimationId = 0;
 
         // 固定节点尺寸：直径 18px，半径 9
         const NODE_DIAMETER = 18;
         const NODE_RADIUS = NODE_DIAMETER / 2;
+        const PACKET_NODE_ID = '__packet_animation__';
+        const HOP_ANIMATION_MS = 550;
 
         function initNetwork() {
             nodesDataset = new vis.DataSet([]);
@@ -283,6 +286,9 @@
             network = new vis.Network(container, data, options);
 
             network.on('click', function (params) {
+                if (params.nodes.includes(PACKET_NODE_ID)) {
+                    return;
+                }
                 if (currentMode === 'fault-inject') {
                     if (params.nodes.length > 0) {
                         const nodeId = params.nodes[0];
@@ -475,6 +481,7 @@
         }
 
         function beginFaultComparison(type, target) {
+            cancelPacketAnimation();
             const beforePath = document.getElementById('before-path');
             const beforeMeta = document.getElementById('before-path-meta');
 
@@ -598,13 +605,13 @@
                         addLog(msg.data.level, msg.data.message);
                         break;
                     case 'packet_forwarded':
-                        addLog('info', `分组转发完成：${msg.data.src} -> ${msg.data.dst}，路径：${msg.data.path.join(' → ')}`);
+                        addLog('info', `收到分组转发结果：${msg.data.src} -> ${msg.data.dst}，开始逐跳演示`);
                         if (awaitingPostFaultPacket) {
                             updatePostFaultPath(msg.data);
                         } else if (lastPacketRequest) {
                             updateBaseline(msg.data);
                         }
-                        highlightPath(msg.data.path);
+                        animatePacketPath(msg.data);
                         break;
                     case 'command_response':
                         addLog(msg.data.success ? 'info' : 'error', msg.data.message);
@@ -636,9 +643,8 @@
             ws.onclose = () => addLog('warning', 'WebSocket 连接关闭');
         }
 
-        function highlightPath(path) {
+        function resetPathHighlight() {
             updateSelectionColors();
-
             edgesDataset.get().forEach(edge => {
                 const isUp = edge.status === 'up';
                 edgesDataset.update({
@@ -647,26 +653,150 @@
                     width: isUp ? 2 : 4
                 });
             });
+        }
 
-            for (let i = 0; i < path.length - 1; i++) {
-                const src = path[i];
-                const dst = path[i + 1];
-                nodesDataset.update({ id: src, color: { background: '#FF9800', border: '#F57C00' } });
-                nodesDataset.update({ id: dst, color: { background: '#FF9800', border: '#F57C00' } });
-                const edgeId = `${src}-${dst}`;
-                if (edgesDataset.get(edgeId)) {
-                    edgesDataset.update({ id: edgeId, color: { color: '#FF9800', highlight: '#FF5722' }, width: 4 });
-                } else {
-                    const reverseEdgeId = `${dst}-${src}`;
-                    if (edgesDataset.get(reverseEdgeId)) {
-                        edgesDataset.update({ id: reverseEdgeId, color: { color: '#FF9800', highlight: '#FF5722' }, width: 4 });
+        function getPathEdgeId(source, target) {
+            const forwardId = `${source}-${target}`;
+            if (edgesDataset.get(forwardId)) {
+                return forwardId;
+            }
+            const reverseId = `${target}-${source}`;
+            return edgesDataset.get(reverseId) ? reverseId : null;
+        }
+
+        function cancelPacketAnimation() {
+            packetAnimationId += 1;
+            if (nodesDataset && nodesDataset.get(PACKET_NODE_ID)) {
+                nodesDataset.remove(PACKET_NODE_ID);
+            }
+        }
+
+        function movePacketMarker(from, to, animationId) {
+            return new Promise(resolve => {
+                const startedAt = performance.now();
+
+                function renderFrame(now) {
+                    if (animationId !== packetAnimationId || !nodesDataset.get(PACKET_NODE_ID)) {
+                        resolve(false);
+                        return;
+                    }
+
+                    const progress = Math.min((now - startedAt) / HOP_ANIMATION_MS, 1);
+                    const eased = 0.5 - Math.cos(progress * Math.PI) / 2;
+                    nodesDataset.update({
+                        id: PACKET_NODE_ID,
+                        x: from.x + (to.x - from.x) * eased,
+                        y: from.y + (to.y - from.y) * eased
+                    });
+
+                    if (progress < 1) {
+                        requestAnimationFrame(renderFrame);
+                    } else {
+                        resolve(true);
                     }
                 }
+
+                requestAnimationFrame(renderFrame);
+            });
+        }
+
+        async function animatePacketPath(packet) {
+            cancelPacketAnimation();
+            const animationId = packetAnimationId;
+            const path = packet.path || [];
+            resetPathHighlight();
+
+            if (!path.length || !nodesDataset.get(path[0])) {
+                updateStatusTip('分组没有可演示的转发路径');
+                return;
             }
 
+            const startPosition = network.getPosition(path[0]);
+            nodesDataset.add({
+                id: PACKET_NODE_ID,
+                label: '',
+                shape: 'dot',
+                size: 7,
+                x: startPosition.x,
+                y: startPosition.y,
+                fixed: true,
+                physics: false,
+                borderWidth: 3,
+                color: { background: '#ffffff', border: '#1976D2' },
+                shadow: { enabled: true, color: 'rgba(0, 0, 0, 0.25)', size: 7, x: 0, y: 2 },
+                chosen: false
+            });
+            nodesDataset.update({
+                id: path[0],
+                color: { background: '#FF9800', border: '#F57C00' }
+            });
+
+            const totalHops = Math.max(0, path.length - 1);
+            if (totalHops === 0) {
+                updateStatusTip(`分组停留在 ${path[0]}，状态：${formatPacketStatus(packet.status)}`);
+            }
+
+            for (let index = 0; index < totalHops; index++) {
+                if (animationId !== packetAnimationId) {
+                    return;
+                }
+
+                const source = path[index];
+                const target = path[index + 1];
+                if (!nodesDataset.get(source) || !nodesDataset.get(target)) {
+                    cancelPacketAnimation();
+                    updateStatusTip('拓扑已变化，逐跳动画已停止');
+                    return;
+                }
+
+                const edgeId = getPathEdgeId(source, target);
+                if (edgeId) {
+                    edgesDataset.update({
+                        id: edgeId,
+                        color: { color: '#1976D2', highlight: '#0D47A1' },
+                        width: 4
+                    });
+                }
+                updateStatusTip(`分组转发：${source} → ${target}（第 ${index + 1}/${totalHops} 跳）`);
+
+                const moved = await movePacketMarker(
+                    network.getPosition(source),
+                    network.getPosition(target),
+                    animationId
+                );
+                if (!moved) {
+                    return;
+                }
+
+                if (edgeId) {
+                    edgesDataset.update({
+                        id: edgeId,
+                        color: { color: '#FF9800', highlight: '#FF5722' },
+                        width: 4
+                    });
+                }
+                nodesDataset.update({
+                    id: target,
+                    color: { background: '#FF9800', border: '#F57C00' }
+                });
+            }
+
+            if (animationId !== packetAnimationId) {
+                return;
+            }
+            nodesDataset.remove(PACKET_NODE_ID);
+            const destination = path[path.length - 1];
+            updateStatusTip(`分组到达 ${destination}，状态：${formatPacketStatus(packet.status)}`);
+            addLog(
+                packet.status === 'delivered' ? 'info' : 'warning',
+                `逐跳演示完成，共 ${totalHops} 跳，状态：${formatPacketStatus(packet.status)}`
+            );
+
             setTimeout(() => {
-                sendCommand('get_topology', {});
-            }, 5000);
+                if (animationId === packetAnimationId) {
+                    sendCommand('get_topology', {});
+                }
+            }, 3000);
         }
 
         window.onload = () => {
