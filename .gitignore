@@ -8,3 +8,9 @@ env/
 .vscode/
 *.log
 .DS_Store
+.pytest_cache/
+.coverage
+htmlcov/
+node_modules/
+*.orig
+*.rej

@@ -559,6 +559,24 @@
             return status === 'delivered' ? '已送达' : '已丢弃';
         }
 
+        // 路由表更新日志聚合：一次故障注入会推送 N 条更新，
+        // 逐条打印会把日志面板刷屏，因此合并为一条汇总日志。
+        let pendingRouteUpdates = new Set();
+        let routeUpdateTimer = null;
+
+        function noteRouteTableUpdate(nodeId) {
+            pendingRouteUpdates.add(nodeId);
+            if (routeUpdateTimer) {
+                return;
+            }
+            routeUpdateTimer = setTimeout(() => {
+                const count = pendingRouteUpdates.size;
+                pendingRouteUpdates.clear();
+                routeUpdateTimer = null;
+                addLog('info', `路由表收敛：${count} 个节点已更新`);
+            }, 300);
+        }
+
         function requestRoutingTable(nodeId) {
             sendCommand('get_routing_table', { node_id: nodeId });
         }
@@ -584,9 +602,39 @@
             logDiv.scrollTop = logDiv.scrollHeight;
         }
 
+        // 后端地址自适应：由页面自身地址推导，避免写死 localhost（换机器/局域网演示都会失败）
+        function resolveWebSocketUrl() {
+            if (window.location.protocol === 'file:') {
+                return 'ws://localhost:8000/ws';  // 直接用 file:// 打开时的兜底
+            }
+            const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            return `${scheme}//${window.location.host}/ws`;
+        }
+
+        let reconnectDelay = 1000;
+        let reconnectTimer = null;
+
+        function scheduleReconnect() {
+            if (reconnectTimer) {
+                return;
+            }
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                connect();
+            }, reconnectDelay);
+            addLog('warning', `将在 ${(reconnectDelay / 1000).toFixed(1)} 秒后重连`);
+            reconnectDelay = Math.min(reconnectDelay * 2, 15000);
+        }
+
         function connect() {
-            ws = new WebSocket('ws://localhost:8000/ws');
-            ws.onopen = () => addLog('info', 'WebSocket 连接成功');
+            if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+                return;  // 已有连接，避免重复建立
+            }
+            ws = new WebSocket(resolveWebSocketUrl());
+            ws.onopen = () => {
+                reconnectDelay = 1000;
+                addLog('info', 'WebSocket 连接成功');
+            };
             ws.onmessage = (event) => {
                 const msg = JSON.parse(event.data);
                 switch (msg.type) {
@@ -595,7 +643,7 @@
                         updateTopology(msg.data);
                         break;
                     case 'routing_table_update':
-                        addLog('info', `节点 ${msg.data.node_id} 路由表已更新 (${msg.data.routes.length} 条)`);
+                        noteRouteTableUpdate(msg.data.node_id);
                         const infoDiv = document.getElementById('route-info');
                         if (infoDiv.style.display !== 'none' && infoDiv.innerHTML.includes(msg.data.node_id)) {
                             requestRoutingTable(msg.data.node_id);
@@ -640,7 +688,10 @@
                 }
             };
             ws.onerror = () => addLog('error', 'WebSocket 错误');
-            ws.onclose = () => addLog('warning', 'WebSocket 连接关闭');
+            ws.onclose = () => {
+                addLog('warning', 'WebSocket 连接关闭');
+                scheduleReconnect();  // 后端重启/网络抖动时自动恢复，无需手动刷新页面
+            };
         }
 
         function resetPathHighlight() {
@@ -786,10 +837,11 @@
             }
             nodesDataset.remove(PACKET_NODE_ID);
             const destination = path[path.length - 1];
-            updateStatusTip(`分组到达 ${destination}，状态：${formatPacketStatus(packet.status)}`);
+            const dropReason = packet.drop_reason ? `，原因：${packet.drop_reason}` : '';
+            updateStatusTip(`分组到达 ${destination}，状态：${formatPacketStatus(packet.status)}${dropReason}`);
             addLog(
                 packet.status === 'delivered' ? 'info' : 'warning',
-                `逐跳演示完成，共 ${totalHops} 跳，状态：${formatPacketStatus(packet.status)}`
+                `逐跳演示完成，共 ${totalHops} 跳，状态：${formatPacketStatus(packet.status)}${dropReason}`
             );
 
             setTimeout(() => {
