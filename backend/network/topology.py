@@ -45,6 +45,7 @@ class Topology:
                 other_node.interfaces = [intf for intf in other_node.interfaces if intf.neighbor_id != node_id]
         # 删除节点
         del self.nodes[node_id]
+        self.refresh_interface_states()
 
     def get_node(self, node_id: str) -> Optional[Node]:
         """根据 ID 获取节点对象"""
@@ -73,6 +74,7 @@ class Topology:
                     source_node.interfaces = [intf for intf in source_node.interfaces if intf.neighbor_id != target_id]
                 if target_node:
                     target_node.interfaces = [intf for intf in target_node.interfaces if intf.neighbor_id != source_id]
+                self.refresh_interface_states()
                 return
 
     def get_link_between(self, node1_id: str, node2_id: str) -> Optional[Link]:
@@ -152,6 +154,7 @@ class Topology:
             target_interface=intf2.name,
         )
         self.links.append(link)
+        self.refresh_interface_states()
         return link
 
     def disconnect_nodes(self, node1_id: str, node2_id: str) -> None:
@@ -205,25 +208,70 @@ class Topology:
             node_info = node.get_node_info()
             nodes_data.append(node_info)
 
-        links_data = [link.to_dict() for link in self.links]
+        # 链路对外展示"有效状态"（链路 up 且两端节点都 up），
+        # 同时保留 admin_status 表示配置/故障注入的原始状态，
+        # 避免出现"节点故障但链路仍显示正常"的矛盾画面。
+        links_data = []
+        for link in self.links:
+            data = link.to_dict()
+            data["admin_status"] = link.status
+            data["status"] = "up" if self.is_link_operational(link) else "down"
+            links_data.append(data)
         return {
             "nodes": nodes_data,
             "links": links_data,
         }
 
     def get_neighbors(self, node_id: str) -> List[str]:
-        """返回指定节点的所有邻居节点 ID 列表（基于当前拓扑中的链路）"""
+        """返回指定节点的可用邻居节点 ID 列表（链路 up 且两端节点都 up）"""
         neighbors = []
-        node = self.nodes.get(node_id)
-        if not node:
+        if node_id not in self.nodes:
             return neighbors
         for link in self.links:
-            if link.source_id == node_id and link.status == "up":
+            if not self.is_link_operational(link):
+                continue
+            if link.source_id == node_id:
                 neighbors.append(link.target_id)
-            elif link.target_id == node_id and link.status == "up":
+            elif link.target_id == node_id:
                 neighbors.append(link.source_id)
-        # 去重（理论上不会重复）
-        return list(set(neighbors))
+        return neighbors
+
+    # ---------- 状态一致性（单一真相） ----------
+    def is_link_operational(self, link: Link) -> bool:
+        """
+        判断链路当前是否可承载流量：链路自身 up，且两端节点都 up。
+        这是"接口是否 up"的唯一判定依据。
+        """
+        if not link.is_up():
+            return False
+        source = self.nodes.get(link.source_id)
+        target = self.nodes.get(link.target_id)
+        if source is None or target is None:
+            return False
+        return source.is_up() and target.is_up()
+
+    def get_operational_links(self) -> List[Link]:
+        """返回当前可承载流量的链路列表"""
+        return [link for link in self.links if self.is_link_operational(link)]
+
+    def refresh_interface_states(self) -> None:
+        """
+        依据「链路状态 + 两端节点状态」统一刷新所有接口状态。
+
+        接口状态是派生量：接口 up <=> 链路 up 且两端节点都 up。
+        任何故障注入/恢复、增删节点或链路之后都必须调用本方法，
+        否则会出现"链路已断但接口仍 up"，导致 LSA 错误通告、路由指向死链路。
+        """
+        for link in self.links:
+            status = "up" if self.is_link_operational(link) else "down"
+            for node_id, intf_name in ((link.source_id, link.source_interface),
+                                       (link.target_id, link.target_interface)):
+                node = self.nodes.get(node_id)
+                if node is None:
+                    continue
+                for intf in node.interfaces:
+                    if intf.name == intf_name:
+                        intf.status = status
 
     def __repr__(self) -> str:
         return f"Topology(nodes={len(self.nodes)}, links={len(self.links)})"

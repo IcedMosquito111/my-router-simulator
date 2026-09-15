@@ -55,6 +55,9 @@ class Packet:
         # 最终状态：in_transit（转发中）、delivered（已送达）、dropped（被丢弃）
         self.status = "in_transit"
 
+        # 被丢弃的原因（便于前端直接展示"为什么丢包"）
+        self.drop_reason: Optional[str] = None
+
     @staticmethod
     def _infer_protocol(ip: str) -> Optional[str]:
         """根据 IP 地址字符串推断协议版本"""
@@ -117,6 +120,7 @@ class Packet:
             "path": self.path,
             "status": self.status,
             "payload": self.payload,
+            "drop_reason": self.drop_reason,
         }
 
     def __repr__(self) -> str:
