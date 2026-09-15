@@ -10,7 +10,6 @@
 from typing import Dict, Any, List, Optional, Tuple
 import logging
 
-from ..node import Node
 from ..topology import Topology
 
 logger = logging.getLogger("router-simulator.ospf")
@@ -31,8 +30,8 @@ class OSPF:
             topology: 网络拓扑对象，包含所有节点和链路
         """
         self.topology = topology
-        # 设置节点获取回环地址的回调，使 Dijkstra 能生成到达其他节点回环地址的路由
-        Node.set_loopback_callback(self._get_loopback)
+        # 回环地址解析器以实例方法注入给节点，避免使用进程级全局状态
+        # （否则同一进程内多个 Simulator/协议实例会互相污染）
 
     def _get_loopback(self, node_id: str) -> Tuple[Optional[str], Optional[str]]:
         """
@@ -52,6 +51,9 @@ class OSPF:
         返回:
             所有节点的路由表更新信息列表，每个元素包含节点 ID 和路由表（符合 RoutingTableUpdate 模型）
         """
+        # 先按「链路状态 + 两端节点状态」刷新接口，保证 LSA 反映真实可用性
+        self.topology.refresh_interface_states()
+
         # 只处理状态为 up 的节点
         up_nodes = {node_id: node for node_id, node in self.topology.nodes.items() if node.is_up()}
 
@@ -82,12 +84,13 @@ class OSPF:
         # 第三步：每个 up 节点运行 Dijkstra 算法，生成路由表
         routing_updates = []
         for node_id, node in up_nodes.items():
-            node.run_dijkstra()
+            node.run_dijkstra(loopback_of=self._get_loopback, protocol="OSPF")
             routing_updates.append({
                 "node_id": node_id,
                 "routes": node.get_routing_table(),
             })
-            logger.info(f"节点 {node_id} 路由表更新完成，共 {len(node.routing_table)} 条路由")
+            # 逐节点日志降到 DEBUG：一次故障注入会产生 N 条，INFO 级别会刷屏
+            logger.debug(f"节点 {node_id} 路由表更新完成，共 {len(node.routing_table)} 条路由")
 
         return routing_updates
 

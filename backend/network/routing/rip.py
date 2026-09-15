@@ -5,11 +5,9 @@
 与 OSPF 模块保持相似接口，便于模拟器切换。
 """
 
-import ipaddress
 import logging
 from typing import Dict, Any, List, Optional, Tuple
 
-from ..node import Node
 from ..topology import Topology
 
 logger = logging.getLogger("router-simulator.rip")
@@ -34,8 +32,6 @@ class RIP:
         self.topology = topology
         # 距离向量表：{node_id: {dest_id: (metric, next_hop_id)}}
         self.distance_vectors: Dict[str, Dict[str, Tuple[int, Optional[str]]]] = {}
-        # 设置节点获取回环地址的回调（与 OSPF 一致）
-        Node.set_loopback_callback(self._get_loopback)
 
     def _get_loopback(self, node_id: str) -> Tuple[Optional[str], Optional[str]]:
         """回调：返回节点的回环 IPv4 和 IPv6 地址"""
@@ -61,7 +57,7 @@ class RIP:
 
         # 根据 up 状态的链路添加直连邻居
         for link in self.topology.links:
-            if link.is_up():
+            if self.topology.is_link_operational(link):
                 src, dst = link.source_id, link.target_id
                 # 只在双方节点都是 up 时才添加
                 if src in up_nodes and dst in up_nodes:
@@ -114,6 +110,7 @@ class RIP:
         返回:
             所有节点的路由表更新列表（与 OSPF 相同格式）
         """
+        self.topology.refresh_interface_states()
         self._initialize_distance_vectors()
         # 迭代更新，最多节点数轮（确保收敛）
         max_iterations = len(self.distance_vectors) + 5
@@ -130,61 +127,23 @@ class RIP:
             node = self.topology.get_node(nid)
             if not node or not node.is_up():
                 continue
-            # 清空旧路由表
-            node.routing_table.clear()
-            # 添加直连路由（与 OSPF 类似）
-            for intf in node.interfaces:
-                if intf.is_up():
-                    if intf.ipv4:
-                        ip, mask = intf.ipv4.split("/")
-                        network = ipaddress.IPv4Network(f"{ip}/{mask}", strict=False)
-                        node.routing_table[str(network)] = {
-                            "destination": str(network),
-                            "next_hop": "direct",
-                            "metric": 0,
-                            "interface": intf.name,
-                            "protocol": "connected",
-                        }
-                    if intf.ipv6:
-                        ip6, mask6 = intf.ipv6.split("/")
-                        network6 = ipaddress.IPv6Network(f"{ip6}/{mask6}", strict=False)
-                        node.routing_table[str(network6)] = {
-                            "destination": str(network6),
-                            "next_hop": "direct",
-                            "metric": 0,
-                            "interface": intf.name,
-                            "protocol": "connected",
-                        }
-            # 添加通过 RIP 学到的远端路由
+            # 清空旧路由表，并安装本机路由（回环/接口地址）与直连路由
+            node.clear_routes()
+            node.install_local_and_connected_routes()
+            # 添加通过 RIP 学到的远端路由（目的前缀统一使用目的节点的回环地址）
             for dest_id, (metric, next_hop_id) in dv.items():
-                if dest_id == nid or metric >= INF:
+                if dest_id == nid or metric >= INF or not next_hop_id:
                     continue
-                # 获取目的节点的回环地址
+                intf = node.get_interface_to_neighbor(next_hop_id)
+                if not intf:
+                    continue  # 出接口不可用（链路/邻居故障），不安装该路由
                 dest_ipv4, dest_ipv6 = self._get_loopback(dest_id)
                 if dest_ipv4:
-                    dest_prefix = dest_ipv4  # 修改点：直接使用，不再拼接 /32
-                    intf = node.get_interface_to_neighbor(next_hop_id) if next_hop_id else None
-                    next_hop_ip = intf.neighbor_ipv4 if intf else None
-                    if next_hop_ip:
-                        node.routing_table[dest_prefix] = {
-                            "destination": dest_prefix,
-                            "next_hop": next_hop_ip,
-                            "metric": metric,
-                            "interface": intf.name,
-                            "protocol": "RIP",
-                        }
+                    node.add_route(dest_ipv4, intf.neighbor_ipv4 or intf.neighbor_ipv6,
+                                   metric, intf.name, "RIP")
                 if dest_ipv6:
-                    dest_prefix6 = dest_ipv6  # 修改点：直接使用，不再拼接 /128
-                    intf = node.get_interface_to_neighbor(next_hop_id) if next_hop_id else None
-                    next_hop_ip6 = intf.neighbor_ipv6 if intf else None
-                    if next_hop_ip6:
-                        node.routing_table[dest_prefix6] = {
-                            "destination": dest_prefix6,
-                            "next_hop": next_hop_ip6,
-                            "metric": metric,
-                            "interface": intf.name,
-                            "protocol": "RIP",
-                        }
+                    node.add_route(dest_ipv6, intf.neighbor_ipv6 or intf.neighbor_ipv4,
+                                   metric, intf.name, "RIP")
             routing_updates.append({
                 "node_id": nid,
                 "routes": node.get_routing_table(),
