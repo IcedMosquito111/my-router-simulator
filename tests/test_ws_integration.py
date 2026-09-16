@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 端到端集成测试：真实 uvicorn 服务 + 真实 WebSocket 客户端。
 
@@ -123,6 +123,32 @@ async def _scenario(port: int):
         assert response["data"]["success"] is True
         assert counts.get("packet_forwarded") == 1
 
+        # 4b) IPv6 转发：目的地址直接取自拓扑快照（前端就是这么取地址的）
+        node_map = {item["id"]: item for item in snapshot["data"]["nodes"]}
+        assert node_map["R41"]["loopback_ipv6"], "快照必须带出回环 IPv6，前端才能发 IPv6 分组"
+        await ws.send(json.dumps({
+            "action": "send_packet",
+            "params": {
+                "src_node": "R2",
+                "dst_ip": node_map["R41"]["loopback_ipv6"].split("/")[0],
+                "protocol": "IPv6",
+            },
+        }))
+        response, _ = await _recv_until_command_response(ws, "send_packet")
+        assert response["data"]["success"] is True
+        assert response["data"]["data"]["protocol"] == "IPv6"
+        assert response["data"]["data"]["path"][0] == "R2"
+        assert response["data"]["data"]["path"][-1] == "R41"
+
+        # 4c) 协议与地址版本不一致必须被拒绝（前端手输地址选错协议时的保护）
+        await ws.send(json.dumps({
+            "action": "send_packet",
+            "params": {"src_node": "R2", "dst_ip": "2001:db8:ffff::29", "protocol": "IPv4"},
+        }))
+        response, _ = await _recv_until_command_response(ws, "send_packet")
+        assert response["data"]["success"] is False
+        assert "不一致" in response["data"]["message"]
+
         # 5) 故障注入：应推送剩余 49 个节点的路由表，并报告收敛耗时
         await ws.send(json.dumps({"action": "inject_fault", "params": {"type": "node", "id": "R25"}}))
         response, counts = await _recv_until_command_response(ws, "inject_fault")
@@ -142,13 +168,23 @@ def test_end_to_end_websocket_scenarios(backend):
     assert metrics["max_convergence_ms"] < 2000
     assert metrics["requirement"]["satisfied"] is True
     assert metrics["faults_injected"] == 1
-    assert metrics["packets_delivered"] == 1
+    assert metrics["packets_delivered"] == 2
     assert metrics["node_count"] == 50
 
     exported = _get_json(backend, "/api/topology/export")
     assert len(exported["nodes"]) == 50
     assert len(exported["links"]) == 75
     assert {"id", "loopback_ipv4"} <= set(exported["nodes"][0])
+
+
+def test_served_frontend_supports_ipv6(backend):
+    """后端托管的前端页面必须带协议选择器与地址输入框（IPv6 演示入口）"""
+    with urllib.request.urlopen(f"http://127.0.0.1:{backend}/", timeout=10) as response:
+        html = response.read().decode("utf-8")
+    assert 'id="protocol-select"' in html
+    assert 'value="IPv6"' in html
+    assert 'id="dst-override"' in html
+    assert "resolveDestinationAddress" in html
 
 
 def test_topology_config_round_trip(tmp_path, backend):

@@ -9,6 +9,8 @@ class NodeInfo(BaseModel):
     """网络节点（路由器）信息"""
     id: str = Field(..., description="节点唯一标识，如 'R1'")
     name: str = Field(..., description="节点显示名称")
+    loopback_ipv4: Optional[str] = Field(default=None, description="回环 IPv4 地址（含掩码），如 '10.255.0.1/32'")
+    loopback_ipv6: Optional[str] = Field(default=None, description="回环 IPv6 地址（含掩码），如 '2001:db8:ffff::1/128'")
     ipv4_interfaces: List[str] = Field(default_factory=list, description="IPv4 接口地址列表，如 ['192.168.1.1/24']")
     ipv6_interfaces: List[str] = Field(default_factory=list, description="IPv6 接口地址列表，如 ['2001:db8::1/64']")
     status: Literal["up", "down"] = Field(default="up", description="节点状态：up=正常，down=故障")

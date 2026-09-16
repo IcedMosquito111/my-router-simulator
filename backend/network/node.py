@@ -490,6 +490,9 @@ class Node:
         return {
             "id": self.id,
             "name": self.name,
+            # 回环地址：前端据此按协议族选择目的地（IPv4 / IPv6）
+            "loopback_ipv4": self.loopback_ipv4,
+            "loopback_ipv6": self.loopback_ipv6,
             "ipv4_interfaces": [intf.ipv4 for intf in self.interfaces if intf.ipv4],
             "ipv6_interfaces": [intf.ipv6 for intf in self.interfaces if intf.ipv6],
             "status": self.status,
