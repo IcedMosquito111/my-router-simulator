@@ -611,7 +611,8 @@ class Simulator:
             packet.mark_dropped()
         if packet.status == "delivered":
             self.metrics["packets_delivered"] += 1
-            await self._log("info", f"分组到达目的节点 {current_node.id}，共 {len(packet.path)} 跳")
+            hops = len(packet.path) - 1  # 跳数 = 链路数 = 节点数 - 1
+            await self._log("info", f"分组到达目的节点 {current_node.id}，共 {hops} 跳（途经 {len(packet.path)} 个节点）")
         else:
             self.metrics["packets_dropped"] += 1
             packet.drop_reason = drop_reason or "未知原因"
@@ -622,7 +623,7 @@ class Simulator:
         await self._push_callback("packet_forwarded", packet_info)
 
         if packet.status == "delivered":
-            message = f"分组转发完成，状态: delivered（{len(packet.path)} 跳）"
+            message = f"分组转发完成，状态: delivered（{len(packet.path) - 1} 跳）"
         else:
             message = f"分组转发完成，状态: dropped（{packet.drop_reason}）"
         return {

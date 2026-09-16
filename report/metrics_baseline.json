@@ -1,0 +1,36 @@
+{
+  "label": "改动前(db561e7)",
+  "seed": 20240915,
+  "results": [
+    {
+      "nodes": 50,
+      "links": 75,
+      "convergence_ms": 14.2
+    },
+    {
+      "nodes": 60,
+      "links": 90,
+      "convergence_ms": 22.4
+    },
+    {
+      "nodes": 100,
+      "links": 150,
+      "convergence_ms": 72.4
+    },
+    {
+      "nodes": 150,
+      "links": 225,
+      "convergence_ms": 184.9
+    },
+    {
+      "nodes": 300,
+      "links": 450,
+      "convergence_ms": 1103.0
+    },
+    {
+      "nodes": 400,
+      "links": 600,
+      "convergence_ms": 2321.6
+    }
+  ]
+}
