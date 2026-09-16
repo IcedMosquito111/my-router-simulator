@@ -1,0 +1,891 @@
+{
+  "seed": 20240915,
+  "requirement_limit_ms": 2000,
+  "code": {
+    "backend_files": 13,
+    "backend_lines": 2337,
+    "test_files": 9,
+    "test_lines": 915,
+    "frontend_files": 1,
+    "frontend_js_lines": 640,
+    "total_lines": 3892
+  },
+  "topology": {
+    "nodes": 50,
+    "links": 75,
+    "avg_degree": 3.0,
+    "routes_total": 5600,
+    "routes_ipv6": 2800,
+    "routes_ipv4": 2800,
+    "routes_per_node_min": 108,
+    "routes_per_node_max": 128,
+    "routes_per_node_avg": 112
+  },
+  "node_faults": {
+    "label": "穷举全网 50 个单节点故障",
+    "samples": 50,
+    "worst_ms": 13.9,
+    "worst_target": "R45",
+    "avg_ms": 11.35,
+    "median_ms": 11.45,
+    "p95_ms": 12.94,
+    "min_ms": 9.61,
+    "max_ratio_to_limit": 143.9,
+    "all_samples": [
+      {
+        "target": "R1",
+        "convergence_ms": 9.94,
+        "total_ms": 9.95,
+        "node_count": 49
+      },
+      {
+        "target": "R10",
+        "convergence_ms": 10.49,
+        "total_ms": 10.5,
+        "node_count": 49
+      },
+      {
+        "target": "R11",
+        "convergence_ms": 11.73,
+        "total_ms": 11.74,
+        "node_count": 49
+      },
+      {
+        "target": "R12",
+        "convergence_ms": 10.91,
+        "total_ms": 10.92,
+        "node_count": 49
+      },
+      {
+        "target": "R13",
+        "convergence_ms": 11.66,
+        "total_ms": 11.66,
+        "node_count": 49
+      },
+      {
+        "target": "R14",
+        "convergence_ms": 10.97,
+        "total_ms": 10.97,
+        "node_count": 49
+      },
+      {
+        "target": "R15",
+        "convergence_ms": 11.85,
+        "total_ms": 11.85,
+        "node_count": 49
+      },
+      {
+        "target": "R16",
+        "convergence_ms": 13.36,
+        "total_ms": 13.37,
+        "node_count": 49
+      },
+      {
+        "target": "R17",
+        "convergence_ms": 11.96,
+        "total_ms": 11.97,
+        "node_count": 49
+      },
+      {
+        "target": "R18",
+        "convergence_ms": 12.08,
+        "total_ms": 12.09,
+        "node_count": 49
+      },
+      {
+        "target": "R19",
+        "convergence_ms": 11.82,
+        "total_ms": 11.83,
+        "node_count": 49
+      },
+      {
+        "target": "R2",
+        "convergence_ms": 10.64,
+        "total_ms": 10.64,
+        "node_count": 49
+      },
+      {
+        "target": "R20",
+        "convergence_ms": 11.73,
+        "total_ms": 11.73,
+        "node_count": 49
+      },
+      {
+        "target": "R21",
+        "convergence_ms": 12.34,
+        "total_ms": 12.34,
+        "node_count": 49
+      },
+      {
+        "target": "R22",
+        "convergence_ms": 11.74,
+        "total_ms": 11.74,
+        "node_count": 49
+      },
+      {
+        "target": "R23",
+        "convergence_ms": 10.88,
+        "total_ms": 10.89,
+        "node_count": 49
+      },
+      {
+        "target": "R24",
+        "convergence_ms": 10.24,
+        "total_ms": 10.25,
+        "node_count": 49
+      },
+      {
+        "target": "R25",
+        "convergence_ms": 11.87,
+        "total_ms": 11.87,
+        "node_count": 49
+      },
+      {
+        "target": "R26",
+        "convergence_ms": 9.98,
+        "total_ms": 9.99,
+        "node_count": 49
+      },
+      {
+        "target": "R27",
+        "convergence_ms": 11.19,
+        "total_ms": 11.19,
+        "node_count": 49
+      },
+      {
+        "target": "R28",
+        "convergence_ms": 12.94,
+        "total_ms": 12.94,
+        "node_count": 49
+      },
+      {
+        "target": "R29",
+        "convergence_ms": 12.34,
+        "total_ms": 12.35,
+        "node_count": 49
+      },
+      {
+        "target": "R3",
+        "convergence_ms": 10.06,
+        "total_ms": 10.07,
+        "node_count": 49
+      },
+      {
+        "target": "R30",
+        "convergence_ms": 10.56,
+        "total_ms": 10.57,
+        "node_count": 49
+      },
+      {
+        "target": "R31",
+        "convergence_ms": 10.55,
+        "total_ms": 10.56,
+        "node_count": 49
+      },
+      {
+        "target": "R32",
+        "convergence_ms": 11.84,
+        "total_ms": 11.84,
+        "node_count": 49
+      },
+      {
+        "target": "R33",
+        "convergence_ms": 9.61,
+        "total_ms": 9.61,
+        "node_count": 49
+      },
+      {
+        "target": "R34",
+        "convergence_ms": 11.97,
+        "total_ms": 11.97,
+        "node_count": 49
+      },
+      {
+        "target": "R35",
+        "convergence_ms": 12.09,
+        "total_ms": 12.1,
+        "node_count": 49
+      },
+      {
+        "target": "R36",
+        "convergence_ms": 10.47,
+        "total_ms": 10.48,
+        "node_count": 49
+      },
+      {
+        "target": "R37",
+        "convergence_ms": 11.75,
+        "total_ms": 11.75,
+        "node_count": 49
+      },
+      {
+        "target": "R38",
+        "convergence_ms": 9.88,
+        "total_ms": 9.89,
+        "node_count": 49
+      },
+      {
+        "target": "R39",
+        "convergence_ms": 10.67,
+        "total_ms": 10.67,
+        "node_count": 49
+      },
+      {
+        "target": "R4",
+        "convergence_ms": 11.72,
+        "total_ms": 11.73,
+        "node_count": 49
+      },
+      {
+        "target": "R40",
+        "convergence_ms": 11.44,
+        "total_ms": 11.44,
+        "node_count": 49
+      },
+      {
+        "target": "R41",
+        "convergence_ms": 12.66,
+        "total_ms": 12.67,
+        "node_count": 49
+      },
+      {
+        "target": "R42",
+        "convergence_ms": 10.77,
+        "total_ms": 10.77,
+        "node_count": 49
+      },
+      {
+        "target": "R43",
+        "convergence_ms": 11.45,
+        "total_ms": 11.46,
+        "node_count": 49
+      },
+      {
+        "target": "R44",
+        "convergence_ms": 12.27,
+        "total_ms": 12.27,
+        "node_count": 49
+      },
+      {
+        "target": "R45",
+        "convergence_ms": 13.9,
+        "total_ms": 13.91,
+        "node_count": 49
+      },
+      {
+        "target": "R46",
+        "convergence_ms": 12.35,
+        "total_ms": 12.35,
+        "node_count": 49
+      },
+      {
+        "target": "R47",
+        "convergence_ms": 10.32,
+        "total_ms": 10.33,
+        "node_count": 49
+      },
+      {
+        "target": "R48",
+        "convergence_ms": 10.76,
+        "total_ms": 10.77,
+        "node_count": 49
+      },
+      {
+        "target": "R49",
+        "convergence_ms": 10.5,
+        "total_ms": 10.5,
+        "node_count": 49
+      },
+      {
+        "target": "R5",
+        "convergence_ms": 10.95,
+        "total_ms": 10.96,
+        "node_count": 49
+      },
+      {
+        "target": "R50",
+        "convergence_ms": 10.21,
+        "total_ms": 10.22,
+        "node_count": 49
+      },
+      {
+        "target": "R6",
+        "convergence_ms": 10.62,
+        "total_ms": 10.63,
+        "node_count": 49
+      },
+      {
+        "target": "R7",
+        "convergence_ms": 11.81,
+        "total_ms": 11.82,
+        "node_count": 49
+      },
+      {
+        "target": "R8",
+        "convergence_ms": 10.47,
+        "total_ms": 10.48,
+        "node_count": 49
+      },
+      {
+        "target": "R9",
+        "convergence_ms": 13.11,
+        "total_ms": 13.12,
+        "node_count": 49
+      }
+    ]
+  },
+  "link_faults": {
+    "label": "穷举全网 75 条单链路故障",
+    "samples": 75,
+    "worst_ms": 13.97,
+    "worst_target": "R3-R28",
+    "avg_ms": 11.37,
+    "median_ms": 11.16,
+    "p95_ms": 12.7,
+    "min_ms": 10.22,
+    "max_ratio_to_limit": 143.2,
+    "all_samples": [
+      {
+        "target": "R1-R2",
+        "convergence_ms": 11.73,
+        "total_ms": 11.73,
+        "node_count": 50
+      },
+      {
+        "target": "R2-R3",
+        "convergence_ms": 11.63,
+        "total_ms": 11.63,
+        "node_count": 50
+      },
+      {
+        "target": "R3-R4",
+        "convergence_ms": 10.86,
+        "total_ms": 10.87,
+        "node_count": 50
+      },
+      {
+        "target": "R4-R5",
+        "convergence_ms": 11.56,
+        "total_ms": 11.56,
+        "node_count": 50
+      },
+      {
+        "target": "R5-R6",
+        "convergence_ms": 12.15,
+        "total_ms": 12.16,
+        "node_count": 50
+      },
+      {
+        "target": "R6-R7",
+        "convergence_ms": 12.04,
+        "total_ms": 12.04,
+        "node_count": 50
+      },
+      {
+        "target": "R7-R8",
+        "convergence_ms": 10.75,
+        "total_ms": 10.75,
+        "node_count": 50
+      },
+      {
+        "target": "R8-R9",
+        "convergence_ms": 11.15,
+        "total_ms": 11.16,
+        "node_count": 50
+      },
+      {
+        "target": "R9-R10",
+        "convergence_ms": 12.51,
+        "total_ms": 12.52,
+        "node_count": 50
+      },
+      {
+        "target": "R10-R11",
+        "convergence_ms": 10.74,
+        "total_ms": 10.75,
+        "node_count": 50
+      },
+      {
+        "target": "R11-R12",
+        "convergence_ms": 11.16,
+        "total_ms": 11.16,
+        "node_count": 50
+      },
+      {
+        "target": "R12-R13",
+        "convergence_ms": 11.23,
+        "total_ms": 11.23,
+        "node_count": 50
+      },
+      {
+        "target": "R13-R14",
+        "convergence_ms": 13.17,
+        "total_ms": 13.18,
+        "node_count": 50
+      },
+      {
+        "target": "R14-R15",
+        "convergence_ms": 10.82,
+        "total_ms": 10.82,
+        "node_count": 50
+      },
+      {
+        "target": "R15-R16",
+        "convergence_ms": 10.99,
+        "total_ms": 10.99,
+        "node_count": 50
+      },
+      {
+        "target": "R16-R17",
+        "convergence_ms": 10.99,
+        "total_ms": 10.99,
+        "node_count": 50
+      },
+      {
+        "target": "R17-R18",
+        "convergence_ms": 10.22,
+        "total_ms": 10.23,
+        "node_count": 50
+      },
+      {
+        "target": "R18-R19",
+        "convergence_ms": 11.3,
+        "total_ms": 11.31,
+        "node_count": 50
+      },
+      {
+        "target": "R19-R20",
+        "convergence_ms": 11.8,
+        "total_ms": 11.8,
+        "node_count": 50
+      },
+      {
+        "target": "R20-R21",
+        "convergence_ms": 10.48,
+        "total_ms": 10.49,
+        "node_count": 50
+      },
+      {
+        "target": "R21-R22",
+        "convergence_ms": 12.5,
+        "total_ms": 12.5,
+        "node_count": 50
+      },
+      {
+        "target": "R22-R23",
+        "convergence_ms": 10.98,
+        "total_ms": 10.99,
+        "node_count": 50
+      },
+      {
+        "target": "R23-R24",
+        "convergence_ms": 11.15,
+        "total_ms": 11.16,
+        "node_count": 50
+      },
+      {
+        "target": "R24-R25",
+        "convergence_ms": 11.91,
+        "total_ms": 11.91,
+        "node_count": 50
+      },
+      {
+        "target": "R25-R26",
+        "convergence_ms": 10.74,
+        "total_ms": 10.74,
+        "node_count": 50
+      },
+      {
+        "target": "R26-R27",
+        "convergence_ms": 11.18,
+        "total_ms": 11.19,
+        "node_count": 50
+      },
+      {
+        "target": "R27-R28",
+        "convergence_ms": 11.0,
+        "total_ms": 11.01,
+        "node_count": 50
+      },
+      {
+        "target": "R28-R29",
+        "convergence_ms": 11.85,
+        "total_ms": 11.86,
+        "node_count": 50
+      },
+      {
+        "target": "R29-R30",
+        "convergence_ms": 12.44,
+        "total_ms": 12.44,
+        "node_count": 50
+      },
+      {
+        "target": "R30-R31",
+        "convergence_ms": 11.97,
+        "total_ms": 11.98,
+        "node_count": 50
+      },
+      {
+        "target": "R31-R32",
+        "convergence_ms": 10.74,
+        "total_ms": 10.75,
+        "node_count": 50
+      },
+      {
+        "target": "R32-R33",
+        "convergence_ms": 10.59,
+        "total_ms": 10.6,
+        "node_count": 50
+      },
+      {
+        "target": "R33-R34",
+        "convergence_ms": 13.25,
+        "total_ms": 13.25,
+        "node_count": 50
+      },
+      {
+        "target": "R34-R35",
+        "convergence_ms": 10.61,
+        "total_ms": 10.61,
+        "node_count": 50
+      },
+      {
+        "target": "R35-R36",
+        "convergence_ms": 11.22,
+        "total_ms": 11.22,
+        "node_count": 50
+      },
+      {
+        "target": "R36-R37",
+        "convergence_ms": 10.9,
+        "total_ms": 10.91,
+        "node_count": 50
+      },
+      {
+        "target": "R37-R38",
+        "convergence_ms": 11.11,
+        "total_ms": 11.12,
+        "node_count": 50
+      },
+      {
+        "target": "R38-R39",
+        "convergence_ms": 11.0,
+        "total_ms": 11.01,
+        "node_count": 50
+      },
+      {
+        "target": "R39-R40",
+        "convergence_ms": 10.65,
+        "total_ms": 10.66,
+        "node_count": 50
+      },
+      {
+        "target": "R40-R41",
+        "convergence_ms": 11.01,
+        "total_ms": 11.01,
+        "node_count": 50
+      },
+      {
+        "target": "R41-R42",
+        "convergence_ms": 10.87,
+        "total_ms": 10.87,
+        "node_count": 50
+      },
+      {
+        "target": "R42-R43",
+        "convergence_ms": 11.31,
+        "total_ms": 11.32,
+        "node_count": 50
+      },
+      {
+        "target": "R43-R44",
+        "convergence_ms": 10.57,
+        "total_ms": 10.57,
+        "node_count": 50
+      },
+      {
+        "target": "R44-R45",
+        "convergence_ms": 11.24,
+        "total_ms": 11.25,
+        "node_count": 50
+      },
+      {
+        "target": "R45-R46",
+        "convergence_ms": 11.25,
+        "total_ms": 11.26,
+        "node_count": 50
+      },
+      {
+        "target": "R46-R47",
+        "convergence_ms": 11.23,
+        "total_ms": 11.24,
+        "node_count": 50
+      },
+      {
+        "target": "R47-R48",
+        "convergence_ms": 10.62,
+        "total_ms": 10.63,
+        "node_count": 50
+      },
+      {
+        "target": "R48-R49",
+        "convergence_ms": 10.63,
+        "total_ms": 10.63,
+        "node_count": 50
+      },
+      {
+        "target": "R49-R50",
+        "convergence_ms": 10.93,
+        "total_ms": 10.93,
+        "node_count": 50
+      },
+      {
+        "target": "R50-R1",
+        "convergence_ms": 11.28,
+        "total_ms": 11.29,
+        "node_count": 50
+      },
+      {
+        "target": "R23-R20",
+        "convergence_ms": 10.6,
+        "total_ms": 10.6,
+        "node_count": 50
+      },
+      {
+        "target": "R35-R23",
+        "convergence_ms": 11.15,
+        "total_ms": 11.16,
+        "node_count": 50
+      },
+      {
+        "target": "R43-R14",
+        "convergence_ms": 11.73,
+        "total_ms": 11.74,
+        "node_count": 50
+      },
+      {
+        "target": "R18-R24",
+        "convergence_ms": 10.69,
+        "total_ms": 10.7,
+        "node_count": 50
+      },
+      {
+        "target": "R8-R31",
+        "convergence_ms": 11.05,
+        "total_ms": 11.05,
+        "node_count": 50
+      },
+      {
+        "target": "R26-R23",
+        "convergence_ms": 12.25,
+        "total_ms": 12.26,
+        "node_count": 50
+      },
+      {
+        "target": "R5-R42",
+        "convergence_ms": 12.28,
+        "total_ms": 12.28,
+        "node_count": 50
+      },
+      {
+        "target": "R19-R24",
+        "convergence_ms": 11.97,
+        "total_ms": 11.97,
+        "node_count": 50
+      },
+      {
+        "target": "R10-R23",
+        "convergence_ms": 12.25,
+        "total_ms": 12.26,
+        "node_count": 50
+      },
+      {
+        "target": "R48-R22",
+        "convergence_ms": 12.7,
+        "total_ms": 12.7,
+        "node_count": 50
+      },
+      {
+        "target": "R23-R50",
+        "convergence_ms": 10.48,
+        "total_ms": 10.49,
+        "node_count": 50
+      },
+      {
+        "target": "R50-R48",
+        "convergence_ms": 11.18,
+        "total_ms": 11.18,
+        "node_count": 50
+      },
+      {
+        "target": "R13-R9",
+        "convergence_ms": 10.8,
+        "total_ms": 10.8,
+        "node_count": 50
+      },
+      {
+        "target": "R37-R48",
+        "convergence_ms": 11.81,
+        "total_ms": 11.82,
+        "node_count": 50
+      },
+      {
+        "target": "R44-R5",
+        "convergence_ms": 10.76,
+        "total_ms": 10.77,
+        "node_count": 50
+      },
+      {
+        "target": "R3-R28",
+        "convergence_ms": 13.97,
+        "total_ms": 13.98,
+        "node_count": 50
+      },
+      {
+        "target": "R10-R42",
+        "convergence_ms": 11.13,
+        "total_ms": 11.14,
+        "node_count": 50
+      },
+      {
+        "target": "R35-R25",
+        "convergence_ms": 11.68,
+        "total_ms": 11.68,
+        "node_count": 50
+      },
+      {
+        "target": "R10-R20",
+        "convergence_ms": 10.85,
+        "total_ms": 10.86,
+        "node_count": 50
+      },
+      {
+        "target": "R25-R7",
+        "convergence_ms": 12.02,
+        "total_ms": 12.03,
+        "node_count": 50
+      },
+      {
+        "target": "R36-R8",
+        "convergence_ms": 11.1,
+        "total_ms": 11.11,
+        "node_count": 50
+      },
+      {
+        "target": "R16-R50",
+        "convergence_ms": 12.92,
+        "total_ms": 12.93,
+        "node_count": 50
+      },
+      {
+        "target": "R8-R32",
+        "convergence_ms": 11.48,
+        "total_ms": 11.48,
+        "node_count": 50
+      },
+      {
+        "target": "R21-R45",
+        "convergence_ms": 10.49,
+        "total_ms": 10.5,
+        "node_count": 50
+      },
+      {
+        "target": "R50-R33",
+        "convergence_ms": 11.41,
+        "total_ms": 11.42,
+        "node_count": 50
+      }
+    ]
+  },
+  "scaling": [
+    {
+      "nodes": 50,
+      "links": 75,
+      "convergence_ms": 11.7
+    },
+    {
+      "nodes": 60,
+      "links": 90,
+      "convergence_ms": 16.6
+    },
+    {
+      "nodes": 100,
+      "links": 150,
+      "convergence_ms": 48.3
+    },
+    {
+      "nodes": 150,
+      "links": 225,
+      "convergence_ms": 110.7
+    },
+    {
+      "nodes": 300,
+      "links": 450,
+      "convergence_ms": 460.8
+    }
+  ],
+  "end_to_end": {
+    "clients": 1,
+    "pushed_route_tables": 49,
+    "convergence_ms": 10.93,
+    "total_ms": 23.43,
+    "wall_clock_ms": 24.4,
+    "api_max_convergence_ms": 10.93,
+    "requirement_satisfied": true
+  },
+  "demo": {
+    "path_before": [
+      "R1",
+      "R2"
+    ],
+    "path_before_hops": 1,
+    "path_after_link_fault": [
+      "R1",
+      "R50",
+      "R23",
+      "R10",
+      "R42",
+      "R5",
+      "R4",
+      "R3",
+      "R2"
+    ],
+    "path_after_link_fault_hops": 8,
+    "path_after_node_recover": [
+      "R1",
+      "R50",
+      "R23",
+      "R10",
+      "R42",
+      "R5",
+      "R4",
+      "R3",
+      "R2"
+    ],
+    "path_restored": [
+      "R1",
+      "R2"
+    ],
+    "path_restored_hops": 1,
+    "crosses_failed_link": false,
+    "ipv6": {
+      "src": "R2",
+      "dst": "2001:db8:ffff::29",
+      "path": [
+        "R2",
+        "R3",
+        "R4",
+        "R5",
+        "R42",
+        "R41"
+      ],
+      "hops": 5,
+      "status": "delivered"
+    }
+  },
+  "tests": {
+    "passed": 73,
+    "duration_s": 11.5,
+    "returncode": 0
+  }
+}

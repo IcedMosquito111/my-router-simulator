@@ -59,7 +59,13 @@ router-simulator/
 │       ├── packet.py               # 分组（TTL、路径、丢弃原因）
 │       └── routing/{ospf.py,rip.py}# 路由协议
 ├── frontend/index.html             # 单页前端（vis-network 拓扑 + 逐跳动画 + 面板）
-├── tests/                          # pytest 测试（65 项）
+├── tests/                          # pytest 测试（73 项）
+├── report/                         # 课程设计报告：正文源、图表、指标数据与生成脚本
+│   ├── report_source.md            # 报告正文源（改这里后重新生成 docx）
+│   ├── 课程设计报告-*.docx          # 按学校模板生成的报告
+│   ├── metrics*.json               # 实跑指标（含优化前后对比）
+│   ├── figures/*.png               # 报告插图（含真实界面截图）
+│   └── scripts/                    # 指标采集 / 绘图 / 截图 / 生成 docx
 ├── requirements.txt / requirements-dev.txt
 └── pytest.ini
 ```
@@ -212,7 +218,7 @@ cd backend
 | 4 | `{"dst_ip": 123}` 抛 `TypeError`、`params: "oops"` 抛 `AttributeError` → 客户端连接被断开 | 接入 pydantic 校验（`models.py` 此前从未被引用），非法输入只返回错误响应 |
 | 5 | `Simulator.__init__` 里 `asyncio.create_task`，同步构造直接 `RuntimeError: no running event loop`，初始路由表推送与握手竞争 | `__init__` 只做纯计算，新增 `async start()`；lifespan 显式 `await` |
 | 6 | 回环地址解析用 `Node` 类级全局回调，同进程多实例互相污染 | 改为实例级注入（`run_dijkstra(loopback_of=...)`） |
-| 7 | 400 节点重计算 3.96 秒（`min()` 线性选点 + 每次重新解析前缀） | 最小堆 Dijkstra + 前缀缓存：50 节点 17ms→13ms，300 节点 3.96s→0.49s |
+| 7 | 规模增大后重计算时间迅速劣化：400 节点 2321.6 ms（`min()` 线性选点 + 每次重新解析前缀），已突破 2 秒指标 | 最小堆 Dijkstra + 前缀解析缓存：400 节点 2321.6 ms→832.4 ms（2.79×），300 节点 1103.0 ms→446.0 ms（2.47×），50 节点 14.2 ms→11.1 ms（同一脚本、同一随机种子、各重复 3 次） |
 | 8 | TTL 在源节点也被递减（路径 h 跳消耗 h 个 TTL），与真实路由器行为不符 | TTL 只在中转路由器递减 |
 | 9 | 前端写死 `ws://localhost:8000/ws`、断线不重连、一次故障刷 49 条日志 | 地址自适应（含 `file://` 兜底）、指数退避重连、路由表更新日志聚合、展示 `drop_reason` |
 | 10 | 无 README/依赖锁定/测试；`CORS: allow_origins=["*"] + allow_credentials=True` 矛盾 | 补齐文档与依赖、加入测试、按通配来源自动关闭凭证、配置全部环境变量化 |
@@ -220,7 +226,36 @@ cd backend
 
 ---
 
-## 8. 已知限制与后续计划
+## 8. 报告与图表（`report/`）
+
+课程设计报告由脚本按学校模板生成，全部数字来自实跑，不手写：
+
+| 文件 | 说明 |
+| --- | --- |
+| `report/课程设计报告-王文聪-1120241345.docx` | 按模板生成的报告（封面、成果简表、9 个章节、22 张表、10 张插图） |
+| `report/report_source.md` | 报告正文源（想改内容改这里，再重新生成 docx） |
+| `report/figures/*.png` | 插图：拓扑、故障前后路径、架构、转发流程、度量口径、收敛分布、规模对比、真实界面截图 |
+| `report/metrics.json` | 全部定量指标（穷举单点故障、规模扩展、端到端、测试结果） |
+| `report/metrics_baseline.json` / `metrics_current.json` | 优化前 / 优化后的规模-耗时对比（同一脚本测量两个版本） |
+| `report/scripts/measure_metrics.py` | 采集指标 → `metrics.json` |
+| `report/scripts/measure_scaling_generic.py` | 通用规模测量（可用 `--backend` 指向任意版本，用于对比） |
+| `report/scripts/make_figures.py` | 由指标数据绘制全部图表 |
+| `report/scripts/capture_ui_screenshot.py` | 用无头 Edge + CDP 驱动页面自动演示并截图 |
+| `report/scripts/build_docx.py` | 按模板填充生成报告 docx |
+
+重新生成（需要 `pip install -r requirements-dev.txt`）：
+
+```powershell
+.\.venv\Scripts\python.exe report\scripts\measure_metrics.py       # 采指标
+.\.venv\Scripts\python.exe report\scripts\make_figures.py          # 画图
+.\.venv\Scripts\python.exe report\scripts\capture_ui_screenshot.py  # 界面截图
+.\.venv\Scripts\python.exe report\scripts\build_docx.py            # 生成 docx
+```
+
+注意：报告模板的标题样式自带自动编号，因此正文标题**不带序号**；打开 docx 后按 `F9` 更新目录域。
+报告中仍留有待填写项（封面"学生专业"、成果简表的"难度系数/人时数/特殊加分项"），请按实际情况补全。
+
+## 9. 已知限制与后续计划
 
 - **RIP 尚未接入前端**：`routing/rip.py` 已可用且有测试（与 BFS 跳数一致），但模拟器默认只用 OSPF；
   后续可做成 UI 可切换的 OSPF/RIP 对比（RIP 采用跳数度量，忽略链路 cost，未实现水平分割/路由毒化）。
