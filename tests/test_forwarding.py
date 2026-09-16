@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 分组转发语义测试。
 
@@ -75,6 +75,8 @@ def test_random_pairs_follow_optimal_paths(simulator):
         hops = len(path) - 1
         # TTL 只在中转路由器处递减：路径 h 跳消耗 h-1 个 TTL
         assert result["data"]["ttl"] == 64 - (hops - 1)
+        # 响应里的跳数必须是链路数（节点数 - 1），不能把节点数当跳数
+        assert f"{hops} 跳" in result["message"], result["message"]
         checked += 1
 
     assert checked == 20
