@@ -1,4 +1,4 @@
-﻿"""
+"""
 基于 Python 的路由模拟系统 - 后端主入口
 
 使用 FastAPI 提供：
@@ -139,7 +139,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="路由模拟系统后端",
     description="基于 Python 的路由模拟系统 API（OSPF 路由计算 + 分组转发 + 故障注入）",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 

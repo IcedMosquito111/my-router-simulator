@@ -187,6 +187,24 @@
             background: #f0f0f0;
         }
 
+        .protocol-tip {
+            font-size: 12px;
+            color: #555;
+            margin-left: 10px;
+        }
+
+        .controls select,
+        .controls input[type="text"] {
+            padding: 6px 8px;
+            font-size: 13px;
+            border: 1px solid #bbb;
+            border-radius: 4px;
+        }
+
+        .controls input[type="text"] {
+            width: 210px;
+        }
+
         .status-tip {
             font-size: 12px;
             color: #555;
@@ -203,6 +221,14 @@
         <span style="width:20px;"></span>
         <button id="btn-select-src" onclick="setMode('select-src')">选择源节点</button>
         <button id="btn-select-dst" onclick="setMode('select-dst')">选择目的节点</button>
+        <label class="protocol-tip">协议
+            <select id="protocol-select" onchange="updateSelectionTip()">
+                <option value="IPv4">IPv4</option>
+                <option value="IPv6">IPv6</option>
+            </select>
+        </label>
+        <input id="dst-override" type="text" placeholder="目的地址（选填，如 2001:db8:ffff::29）"
+               onchange="updateSelectionTip()" />
         <button id="btn-send-packet" onclick="sendPacket()">发送分组</button>
         <button id="btn-reset-selection" onclick="resetSelection()">重置选择</button>
         <span class="status-tip" id="status-tip">就绪 - 请点击按钮选择操作</span>
@@ -319,14 +345,14 @@
                     }
                 } else if (currentMode === 'select-src' && params.nodes.length > 0) {
                     selectedSrc = params.nodes[0];
-                    updateStatusTip(`源节点: ${selectedSrc}，目的节点: ${selectedDst || '未选择'}`);
                     setMode(null);
                     updateSelectionColors();
+                    updateSelectionTip();
                 } else if (currentMode === 'select-dst' && params.nodes.length > 0) {
                     selectedDst = params.nodes[0];
-                    updateStatusTip(`源节点: ${selectedSrc || '未选择'}，目的节点: ${selectedDst}`);
                     setMode(null);
                     updateSelectionColors();
+                    updateSelectionTip();
                 } else if (params.nodes.length > 0) {
                     requestRoutingTable(params.nodes[0]);
                 }
@@ -358,7 +384,7 @@
                 tip.textContent = '请点击选择目的节点';
                 document.getElementById('btn-select-dst').classList.add('active-mode');
             } else {
-                tip.textContent = `就绪 - 源节点: ${selectedSrc || '未选择'}，目的节点: ${selectedDst || '未选择'}`;
+                updateSelectionTip();
             }
         }
 
@@ -366,11 +392,67 @@
             document.getElementById('status-tip').textContent = text;
         }
 
+        // ---------- 协议族与地址解析 ----------
+        function currentProtocol() {
+            const select = document.getElementById('protocol-select');
+            return select && select.value === 'IPv6' ? 'IPv6' : 'IPv4';
+        }
+
+        function setProtocol(value) {
+            const select = document.getElementById('protocol-select');
+            if (select && select.value !== value) {
+                select.value = value;
+            }
+        }
+
+        function stripMask(address) {
+            return (address || '').split('/')[0];
+        }
+
+        // 目的地址解析优先级：手输地址 > 所选目的节点在当前协议族下的回环地址
+        function resolveDestinationAddress(protocol, override) {
+            if (override) {
+                return override;
+            }
+            if (!selectedDst) {
+                return null;
+            }
+            const node = nodesDataset.get(selectedDst);
+            if (!node) {
+                return null;
+            }
+            return stripMask(protocol === 'IPv6' ? node.loopbackIpv6 : node.loopbackIpv4);
+        }
+
+        function describeNode(nodeId) {
+            if (!nodeId) {
+                return '未选择';
+            }
+            const node = nodesDataset.get(nodeId);
+            const address = node
+                ? stripMask(currentProtocol() === 'IPv6' ? node.loopbackIpv6 : node.loopbackIpv4)
+                : '';
+            return address ? `${nodeId} (${address})` : nodeId;
+        }
+
+        function updateSelectionTip() {
+            const override = document.getElementById('dst-override');
+            const manual = override ? override.value.trim() : '';
+            const target = manual ? `${manual}（手输地址）` : describeNode(selectedDst);
+            updateStatusTip(
+                `就绪 - 源节点: ${describeNode(selectedSrc)}，目的节点: ${target} · ${currentProtocol()}`
+            );
+        }
+
         function resetSelection() {
             selectedSrc = null;
             selectedDst = null;
+            const override = document.getElementById('dst-override');
+            if (override) {
+                override.value = '';
+            }
             updateSelectionColors();
-            updateStatusTip('已重置源/目的节点选择');
+            updateStatusTip('已重置源/目的节点选择与手输地址');
         }
 
         function updateSelectionColors() {
@@ -422,6 +504,9 @@
                     id: node.id,
                     label: node.id,
                     status: node.status,
+                    loopbackIpv4: node.loopback_ipv4 || '',
+                    loopbackIpv6: node.loopback_ipv6 || '',
+                    ipv6Interfaces: node.ipv6_interfaces || [],
                     size: NODE_RADIUS,
                     widthConstraint: { minimum: NODE_DIAMETER, maximum: NODE_DIAMETER },
                     heightConstraint: { minimum: NODE_DIAMETER, maximum: NODE_DIAMETER },
@@ -469,15 +554,40 @@
         }
 
         function sendPacket() {
-            if (!selectedSrc || !selectedDst) {
-                addLog('error', '请先选择源节点和目的节点');
+            const overrideInput = document.getElementById('dst-override');
+            const override = overrideInput ? overrideInput.value.trim() : '';
+
+            if (!selectedSrc) {
+                addLog('error', '请先选择源节点');
                 return;
             }
-            const num = parseInt(selectedDst.replace('R', ''));
-            const dstIp = `10.255.${Math.floor(num / 256)}.${num % 256}`;
-            lastPacketRequest = { src_node: selectedSrc, dst_node: selectedDst, dst_ip: dstIp };
-            sendCommand('send_packet', { src_node: selectedSrc, dst_ip: dstIp });
-            updateStatusTip(`分组已从 ${selectedSrc} 发往 ${selectedDst}`);
+            if (!selectedDst && !override) {
+                addLog('error', '请先选择目的节点，或在输入框中直接填写目的地址');
+                return;
+            }
+
+            let protocol = currentProtocol();
+            // 手输地址带冒号说明是 IPv6：自动纠正协议族，避免被后端"协议与地址版本不一致"拒绝
+            if (override && override.includes(':') && protocol !== 'IPv6') {
+                setProtocol('IPv6');
+                protocol = 'IPv6';
+                addLog('info', '检测到 IPv6 目的地址，已自动切换协议为 IPv6');
+            }
+
+            const dstIp = resolveDestinationAddress(protocol, override);
+            if (!dstIp) {
+                addLog('error', `目的节点 ${selectedDst} 没有配置 ${protocol} 地址`);
+                return;
+            }
+
+            lastPacketRequest = {
+                src_node: selectedSrc,
+                dst_node: selectedDst,
+                dst_ip: dstIp,
+                protocol: protocol
+            };
+            sendCommand('send_packet', { src_node: selectedSrc, dst_ip: dstIp, protocol: protocol });
+            updateStatusTip(`分组已从 ${selectedSrc} 发往 ${selectedDst || dstIp} · ${protocol} · ${dstIp}`);
         }
 
         function beginFaultComparison(type, target) {
@@ -531,14 +641,14 @@
             }
             document.getElementById('before-path').textContent = formatPath(packet.path);
             const meta = document.getElementById('before-path-meta');
-            meta.textContent = `${Math.max(0, packet.path.length - 1)} 跳 · ${formatPacketStatus(packet.status)}`;
+            meta.textContent = `${Math.max(0, packet.path.length - 1)} 跳 · ${packet.protocol || 'IPv4'} · ${formatPacketStatus(packet.status)}`;
             meta.className = `path-meta${packet.status === 'delivered' ? '' : ' failure'}`;
         }
 
         function updatePostFaultPath(packet) {
             const meta = document.getElementById('after-path-meta');
             document.getElementById('after-path').textContent = packet.path.length ? formatPath(packet.path) : '无可用路径';
-            meta.textContent = `${Math.max(0, packet.path.length - 1)} 跳 · ${formatPacketStatus(packet.status)}`;
+            meta.textContent = `${Math.max(0, packet.path.length - 1)} 跳 · ${packet.protocol || 'IPv4'} · ${formatPacketStatus(packet.status)}`;
             meta.className = `path-meta${packet.status === 'delivered' ? '' : ' failure'}`;
             awaitingPostFaultPacket = false;
         }
@@ -583,7 +693,9 @@
 
         function displayRoutingTable(nodeId, routes) {
             const infoDiv = document.getElementById('route-info');
-            let html = `<h3>节点 ${nodeId} 路由表</h3>`;
+            const ipv6Count = routes.filter(route => route.destination.includes(':')).length;
+            const ipv4Count = routes.length - ipv6Count;
+            let html = `<h3>节点 ${nodeId} 路由表（IPv4 ${ipv4Count} 条 / IPv6 ${ipv6Count} 条）</h3>`;
             html += `<table><tr><th>目的网络</th><th>下一跳</th><th>度量值</th><th>接口</th><th>协议</th></tr>`;
             routes.forEach(route => {
                 html += `<tr><td>${route.destination}</td><td>${route.next_hop}</td><td>${route.metric}</td><td>${route.interface}</td><td>${route.protocol}</td></tr>`;
@@ -671,7 +783,11 @@
                             if (faultComparison && faultComparison.request) {
                                 awaitingPostFaultPacket = true;
                                 const request = faultComparison.request;
-                                sendCommand('send_packet', { src_node: request.src_node, dst_ip: request.dst_ip });
+                                sendCommand('send_packet', {
+                                    src_node: request.src_node,
+                                    dst_ip: request.dst_ip,
+                                    protocol: request.protocol
+                                });
                             } else {
                                 document.getElementById('after-path').textContent = '未执行路径对比';
                                 document.getElementById('after-path-meta').textContent = '缺少故障前基准路径';

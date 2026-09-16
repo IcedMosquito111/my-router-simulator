@@ -20,6 +20,18 @@ def _interfaces_to(topology, node_id, neighbor_id):
     return [intf for intf in topology.get_node(node_id).interfaces if intf.neighbor_id == neighbor_id]
 
 
+def test_topology_snapshot_exposes_loopback_addresses(simulator):
+    """前端需要按协议族取目的地址，因此快照必须带出回环 IPv4/IPv6"""
+    snapshot = simulator.get_topology_snapshot()
+    assert len(snapshot["nodes"]) == 50
+    for node in snapshot["nodes"]:
+        assert node["loopback_ipv4"], f"{node['id']} 缺少回环 IPv4"
+        assert node["loopback_ipv6"], f"{node['id']} 缺少回环 IPv6"
+        assert node["loopback_ipv4"].endswith("/32")
+        assert node["loopback_ipv6"].endswith("/128")
+        assert any(":" in address for address in node["ipv6_interfaces"])
+
+
 def test_node_fault_marks_attached_links_and_interfaces_down(simulator):
     victim = "R25"
     attached = _attached_links(simulator.topology, victim)
