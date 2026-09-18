@@ -21,6 +21,8 @@ import pathlib
 import re
 import sys
 
+import shutil
+
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Emu, Inches, Pt
@@ -29,7 +31,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 TEMPLATE = ROOT / "计算机与网络课程设计-课程设计报告-模板.docx"
 SOURCE = ROOT / "report" / "report_source.md"
 FIG_DIR = ROOT / "report" / "figures"
-OUTPUT = ROOT / "report" / "课程设计报告-王文聪-1120241345.docx"
+OUTPUT = ROOT / "report" / "课程设计报告.docx"   # 与手动保存的文件名保持一致；覆盖前会自动备份 .bak
 
 BODY_FONT_SIZE = Pt(11)      # 正文小四略小，保证表格与图注不过度占版面
 TABLE_FONT_SIZE = Pt(9)
@@ -108,8 +110,10 @@ def fill_cover(document: Document, cover: dict) -> None:
     rows[0].cells[1].text = cover.get("课题名称", "")
     for row_index, key in ((1, "学生姓名"), (2, "学生学号"), (3, "学生专业")):
         cells = rows[row_index].cells
-        cells[1].text = cover.get(key, "")
-        cells[2].text = ""      # 单人课题：清掉【学生2】占位符
+        # 支持多人课题：以“、”分隔的第 2 位同学写入第 3 列
+        values = [item.strip() for item in cover.get(key, "").split("、")]
+        cells[1].text = values[0] if values else ""
+        cells[2].text = values[1] if len(values) > 1 else ""
     for cell in rows[0].cells:
         for paragraph in cell.paragraphs:
             for run in paragraph.runs:
@@ -132,20 +136,36 @@ def fill_summary(document: Document, summary: dict) -> None:
 
 # ---------- 正文写入辅助 ----------
 def add_body_paragraph(document: Document, text: str, indent: bool = True, bold: bool = False):
+    """
+    写入一段正文，并处理 Markdown 的 **加粗** 标记。
+
+    注意：早期版本把 ** 原样写进 Word（用户在 Word 里才手动清掉），
+    这里改为把 ** 之间的内容生成为真正的加粗 run。
+    """
     paragraph = document.add_paragraph()
-    run = paragraph.add_run(text)
-    run.font.size = BODY_FONT_SIZE
-    run.bold = bold
+    paragraph.paragraph_format.line_spacing = 1.4
+    for index, chunk in enumerate(text.split("**")):
+        if not chunk:
+            continue
+        run = paragraph.add_run(chunk)
+        run.font.size = BODY_FONT_SIZE
+        run.bold = bold or (index % 2 == 1)
     if indent:
         paragraph.paragraph_format.first_line_indent = Pt(22)
     paragraph.paragraph_format.space_after = Pt(4)
     return paragraph
 
 
-def add_bullet(document: Document, text: str):
+def add_bullet(document: Document, text: str, numbered: bool = False):
+    """列表项：编号列表保持原文（1. xxx），无序列表加“· ”前缀并悬挂缩进"""
     paragraph = document.add_paragraph()
-    run = paragraph.add_run(f"· {text}")
-    run.font.size = BODY_FONT_SIZE
+    prefix = "" if numbered else "· "
+    for index, chunk in enumerate(text.split("**")):
+        if not chunk:
+            continue
+        run = paragraph.add_run((prefix if index == 0 else "") + chunk)
+        run.font.size = BODY_FONT_SIZE
+        run.bold = index % 2 == 1
     paragraph.paragraph_format.left_indent = Pt(20)
     paragraph.paragraph_format.space_after = Pt(2)
     return paragraph
@@ -238,13 +258,17 @@ def main() -> None:
         elif kind == "p":
             add_body_paragraph(document, payload)
         elif kind == "bullet":
-            add_bullet(document, payload)
+            add_bullet(document, payload, numbered=bool(re.match(r"^\d+\.\s", payload)))
         elif kind == "table":
             add_table(document, payload)
         elif kind == "figure":
             filename, caption = payload
             add_figure(document, filename, caption, figure_width)
 
+    if OUTPUT.exists():      # 覆盖前自动备份，避免手改内容丢失
+        backup = OUTPUT.with_suffix(".docx.bak")
+        shutil.copy2(OUTPUT, backup)
+        print(f"已备份原文件：{backup}")
     document.save(str(OUTPUT))
     print(f"报告已生成：{OUTPUT}")
     print(f"  图片宽度：{figure_width} 英寸（版心宽度 {width} 英寸）")
